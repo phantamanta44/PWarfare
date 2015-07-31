@@ -1,0 +1,17 @@
+name: MBTLib
+version: 1.0.0
+description: Kind of like Battlefield
+author: Phanta
+depend: [ProtocolLib, SwornGuns]
+website: https://phantamanta44.github.io
+main: io.github.phantamanta44.pwarfare.PWarfare
+commands:
+    pwarfare:
+        description: PWarfare root command
+        aliases: [war, pwar]
+        usage: "/pwarfare"
+permissions:
+    pwarfare.admin:
+        description: admin powers activate
+        default: op
+
