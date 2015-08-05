@@ -20,14 +20,7 @@ public class GunWrapper {
 		slot = slt;
 		attachments = Lists.newArrayList(attach);
 		for (AttachmentWrapper wrapper : attach)
-			GameKit.attMap.put(Integer.valueOf(wrapper.hashCode()), wrapper);
-	}
-	
-	public static class PlayerGun {
-		
-		GunWrapper gun;
-		int xp;
-		
+			GameKit.attMap.put(wrapper.att.getFileName(), wrapper);
 	}
 	
 }

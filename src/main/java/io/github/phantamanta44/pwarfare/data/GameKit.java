@@ -21,7 +21,7 @@ import com.google.common.collect.Maps;
 public class GameKit {
 	
 	public static final Map<String, GunWrapper> gunMap = Maps.newHashMap();
-	public static final Map<Integer, AttachmentWrapper> attMap = Maps.newHashMap();
+	public static final Map<String, AttachmentWrapper> attMap = Maps.newHashMap();
 
 	private static final Object[] AS_US_ATT = new Object[] {"ACOG", 10, 0, "HeavyBarrel", 20, 2, "Foregrip", 30, 1, "TacticalLight", 40, 1, "Reflex", 50, 0, "Bipod", 60, 1, "Suppressor", 70, 2, "Holo", 80, 0, "LaserSight", 90, 1, "IRNV", 100, 0, "RifleScope", 125, 0, "M145", 150, 0, "FlashSuppressor", 175, 2, "PSO-1", 200, 0, "Kobra", 235, 0, "PKA-S", 270, 0, "PKS-07", 300, 0, "PK-A", 350, 0};
 	private static final Object[] AS_RU_ATT = new Object[] {"PSO-1", 10, 0, "HeavyBarrel", 20, 2, "Foregrip", 30, 1, "TacticalLight", 40, 1, "Kobra", 50, 0, "Bipod", 60, 1, "Suppressor", 70, 2, "PKA-S", 80, 0, "LaserSight", 90, 1, "IRNV", 100, 0, "PKS-07", 125, 0, "PK-A", 0, 150, "FlashSuppressor", 175, 2, "ACOG", 200, 0, "Reflex", 235, 0, "Holo", 270, 0, "RifleScope", 300, 0, "M145", 350, 0};
@@ -41,6 +41,7 @@ public class GameKit {
 	private KitClass kit;
 	private List<List<PlayerGun>> ownedGuns;
 	private int[] selected;
+	private UUID playerId;
 	private GamePlayer player;
 	
 	public GameKit(KitClass clazz, GamePlayer pl) {
@@ -50,6 +51,7 @@ public class GameKit {
 		for (int i = 0; i < 3; i++)
 			ownedGuns.add(new ArrayList<PlayerGun>());
 		selected = new int[] {0, 0, 0};
+		playerId = pl.getId();
 		player = pl;
 		checkUnlockables();
 	}
@@ -72,9 +74,9 @@ public class GameKit {
 					if (pg.gun == g)
 						continue xpCheck;
 				}
-				ownedGuns.get(g.slot).add(new PlayerGun(player, g));
-				TitleHelper.sendTitle(player.getPlayer(), "UNLOCKED", TitleAction.TITLE);
-				TitleHelper.sendTitle(player.getPlayer(), g.gun.getName(), TitleAction.SUBTITLE);
+				ownedGuns.get(g.slot).add(new PlayerGun(getPlayer(), g));
+				TitleHelper.sendTitle(getPlayer().getPlayer(), "UNLOCKED", TitleAction.TITLE);
+				TitleHelper.sendTitle(getPlayer().getPlayer(), g.gun.getName(), TitleAction.SUBTITLE);
 			}
 		}
 	}
@@ -131,10 +133,12 @@ public class GameKit {
 		private int kills;
 		private List<List<AttachmentWrapper>> att;
 		int[] selected;
+		private UUID playerId;
 		private GamePlayer player;
 		
 		public PlayerGun(GamePlayer pl, GunWrapper g) {
 			player = pl;
+			playerId = pl.getId();
 			gun = g;
 			kills = 0;
 			att = Lists.newArrayList();
@@ -153,8 +157,8 @@ public class GameKit {
 			for (AttachmentWrapper attach : gun.attachments) {
 				if (kills > attach.killsNeeded) {
 					att.get(attach.slot).add(attach);
-					TitleHelper.sendTitle(player.getPlayer(), "UNLOCKED", TitleAction.TITLE);
-					TitleHelper.sendTitle(player.getPlayer(), gun.gun.getName() + ": " + attach.att.getName(), TitleAction.SUBTITLE);
+					TitleHelper.sendTitle(getPlayer().getPlayer(), "UNLOCKED", TitleAction.TITLE);
+					TitleHelper.sendTitle(getPlayer().getPlayer(), gun.gun.getName() + ": " + attach.att.getName(), TitleAction.SUBTITLE);
 				}
 			}
 		}
@@ -184,17 +188,23 @@ public class GameKit {
 			return selected[slot];
 		}
 		
+		public GamePlayer getPlayer() {
+			if (player == null)
+				player = PWarfare.INSTANCE.database.getPlayer(playerId);
+			return player;
+		}
+		
 		public PlayerGunSerializable serialize() {
-			int[][] attList = new int[3][];
+			String[][] attList = new String[3][];
 			for (int i = 0; i < 3; i++) {
-				attList[i] = new int[att.get(i).size()];
+				attList[i] = new String[att.get(i).size()];
 				for (int j = 0; j < attList[i].length; j++)
-					attList[i][j] = att.get(i).get(j).att.hashCode();
+					attList[i][j] = att.get(i).get(j).att.getFileName();
 			}
 			return new PlayerGunSerializable(kills, selected, gun.gun.getFileName(), attList);
 		}
 		
-		public PlayerGun(PlayerGunSerializable data, GamePlayer pl) {
+		public PlayerGun(PlayerGunSerializable data, UUID pl) {
 			kills = data.kills;
 			selected = data.selected;
 			gun = gunMap.get(data.gun);
@@ -202,9 +212,9 @@ public class GameKit {
 			for (int i = 0; i < 3; i++) {
 				att.add(new ArrayList<AttachmentWrapper>());
 				for (int j = 0; j < data.att[i].length; j++)
-					att.get(i).add(attMap.get(Integer.valueOf(data.att[i][j])));
+					att.get(i).add(attMap.get(data.att[i][j]));
 			}
-			player = pl;
+			playerId = pl;
 		}
 		
 		public static class PlayerGunSerializable extends Serializable {
@@ -212,9 +222,9 @@ public class GameKit {
 			public final int kills;
 			public final int[] selected;
 			public final String gun;
-			public final int[][] att;
+			public final String[][] att;
 			
-			public PlayerGunSerializable(int kills, int[] selected, String gun, int[][] att) {
+			public PlayerGunSerializable(int kills, int[] selected, String gun, String[][] att) {
 				this.kills = kills;
 				this.selected = selected;
 				this.gun = gun;
@@ -339,9 +349,11 @@ public class GameKit {
 				AttachmentWrapper[] attachments = new AttachmentWrapper[attObj.length / 3];
 				for (int j = 0; j < attObj.length; j += 3) {
 					Attachment att = SGUtil.getAtt((String)attObj[j]);
-					int kills = (int)attObj[j + 1];
-					int slt = (int)attObj[j + 2];
-					attachments[i] = new AttachmentWrapper(att, kills, slt);
+					if ((attachments[i] = attMap.get(att.getFileName())) == null) {
+						int kills = (int)attObj[j + 1];
+						int slt = (int)attObj[j + 2];
+						attachments[i] = new AttachmentWrapper(att, kills, slt);
+					}
 				}
 				wrappers[i] = new GunWrapper(gun, amt, xp, slot, attachments);
 			}
@@ -367,16 +379,22 @@ public class GameKit {
 		return new GameKitSerializable(xp, kit, gunSer, selected, player.getId());
 	}
 	
+	private GamePlayer getPlayer() {
+		if (player == null)
+			player = PWarfare.INSTANCE.database.getPlayer(playerId);
+		return player;
+	}
+	
 	public GameKit(GameKitSerializable data) {
 		xp = data.xp;
 		kit = data.kit;
 		selected = data.selected;
-		player = PWarfare.INSTANCE.database.getPlayer(data.player);
+		playerId = data.player;
 		ownedGuns = Lists.newArrayList();
 		for (int i = 0; i < 3; i++) {
 			ownedGuns.add(new ArrayList<PlayerGun>());
 			for (int j = 0; j < data.ownedGuns.length; j++)
-				ownedGuns.get(i).add(new PlayerGun(data.ownedGuns[i][j], player));
+				ownedGuns.get(i).add(new PlayerGun(data.ownedGuns[i][j], playerId));
 		}
 	}
 	

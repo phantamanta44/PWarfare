@@ -29,6 +29,8 @@ public class GameDB {
 		loadedPlayers = Maps.newHashMap();
 		loadedMaps = Maps.newHashMap();
 		dbFile = new File(PWarfare.INSTANCE.getDataFolder(), "database.json");
+		if (!dbFile.exists())
+			dbWrite();
 		dbRead();
 	}
 	
@@ -100,12 +102,14 @@ public class GameDB {
 	public GamePlayer registerPlayer(OfflinePlayer pl) {
 		GamePlayer p = new GamePlayer(pl);
 		loadedPlayers.put(p.getId(), p);
+		dbWrite();
 		return p;
 	}
 	
 	public GameMap registerMap(World w, GameMode m) {
 		GameMap map = new GameMap(w, m);
 		loadedMaps.put(map.getName(), map);
+		dbWrite();
 		return map;
 	}
 	

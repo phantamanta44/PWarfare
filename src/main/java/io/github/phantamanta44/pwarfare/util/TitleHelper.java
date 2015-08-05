@@ -12,7 +12,6 @@ import org.apache.commons.lang.mutable.MutableInt;
 import org.bukkit.entity.Player;
 
 import com.comphenix.packetwrapper.WrapperPlayServerTitle;
-import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.wrappers.EnumWrappers.TitleAction;
 import com.comphenix.protocol.wrappers.WrappedChatComponent;
 import com.google.common.collect.Lists;
@@ -63,7 +62,7 @@ public class TitleHelper {
 			titlePacket.setStay(104);
 			titlePacket.setTitle(title.message);
 			titlePacket.setAction(title.type);
-			ProtocolLibrary.getProtocolManager().sendServerPacket(title.player, titlePacket.getHandle());
+			titlePacket.sendPacket(title.player);
 		} catch (Throwable th) {
 			PWarfare.INSTANCE.logger.warning("Failed to send title packet!");
 			th.printStackTrace();

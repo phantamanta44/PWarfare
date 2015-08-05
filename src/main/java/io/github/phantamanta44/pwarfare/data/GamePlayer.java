@@ -4,9 +4,11 @@ import io.github.phantamanta44.pwarfare.Game;
 import io.github.phantamanta44.pwarfare.PWarfare;
 import io.github.phantamanta44.pwarfare.data.GameKit.GameKitSerializable;
 import io.github.phantamanta44.pwarfare.data.GameKit.KitClass;
+import io.github.phantamanta44.pwarfare.data.GameKit.PlayerGun;
 import io.github.phantamanta44.pwarfare.gui.PostMatchGui;
 import io.github.phantamanta44.pwarfare.gui.RespawnGui;
 import io.github.phantamanta44.pwarfare.handler.ITickHandler;
+import io.github.phantamanta44.pwarfare.util.SGUtil;
 import io.github.phantamanta44.pwarfare.util.TitleHelper;
 
 import java.util.UUID;
@@ -72,8 +74,6 @@ public class GamePlayer implements ITickHandler {
 	public GamePlayer(OfflinePlayer pl) {
 		player = pl;
 		kills = deaths = level = xp = 0;
-		kits = new GameKit[] {new GameKit(KitClass.ASSAULT, this), new GameKit(KitClass.ENGINEER, this), new GameKit(KitClass.SUPPORT, this), new GameKit(KitClass.RECON, this)};
-		globalKit = new GameKit(KitClass.GENERIC, this);
 	}
 
 	public String getName() {
@@ -116,11 +116,11 @@ public class GamePlayer implements ITickHandler {
 			deaths = pl.deaths;
 			level = pl.level;
 			xp = pl.xp;
-			kits = new GameKitSerializable[pl.kits.length];
+			kits = new GameKitSerializable[pl.getKits().length];
 			for (int i = 0; i < kits.length; i++)
-				kits[i] = pl.kits[i].serialize();
+				kits[i] = pl.getKit(i).serialize();
 			kit = pl.kit;
-			globalKit = pl.globalKit.serialize();
+			globalKit = pl.getGlobalKit().serialize();
 		}
 		
 	}
@@ -200,20 +200,18 @@ public class GamePlayer implements ITickHandler {
 			level++;
 			TitleHelper.sendTitleJson(player.getPlayer(), PROM_TEXT, TitleAction.TITLE);
 			TitleHelper.sendTitle(player.getPlayer(), "[" + level + "] " + getRank(), TitleAction.SUBTITLE);
-			globalKit.setXp(xp);
+			getGlobalKit().setXp(xp);
 		}
 		
 		Scoreboard sb;
 		Objective obj;
-		if ((sb = player.getPlayer().getScoreboard()) == null) {
+		if ((sb = player.getPlayer().getScoreboard()) == null || (obj = sb.getObjective("bfdummyobjective")) == null) {
 			sb = Bukkit.getServer().getScoreboardManager().getNewScoreboard();
 			obj = sb.registerNewObjective("bfdummyobjective", "DUMMY");
 			obj.setDisplayName(SB_OBJ_NAME);
 			obj.setDisplaySlot(DisplaySlot.SIDEBAR);
 			player.getPlayer().setScoreboard(sb);
 		}
-		else
-			obj = sb.getObjective(DisplaySlot.SIDEBAR);
 		obj.getScore("Kills").setScore(matchKills);
 		obj.getScore("Deaths").setScore(matchDeaths);
 		obj.getScore("Level").setScore(level);
@@ -311,7 +309,7 @@ public class GamePlayer implements ITickHandler {
 	
 	public void awardXp(int amt) {
 		xp += amt;
-		kits[kit].addXp(amt);
+		getKit().addXp(amt);
 	}
 	
 	public void awardXp(int amt, String reason) {
@@ -326,9 +324,9 @@ public class GamePlayer implements ITickHandler {
 		try {
 			Gun gun = PWarfare.INSTANCE.sguns.getGunsByItem(getPlayer().getItemInHand()).get(0);
 			if (primGlobal)
-				globalKit.getGun(gun).onKill();
+				getGlobalKit().getGun(gun).onKill();
 			else
-				kits[kit].getGun(gun).onKill();
+				getKit().getGun(gun).onKill();
 		} catch (IndexOutOfBoundsException ex) { }
 		catch (NullPointerException ex) {
 			PWarfare.INSTANCE.logger.warning("NPE registering kill on gun!");
@@ -344,13 +342,17 @@ public class GamePlayer implements ITickHandler {
 	}
 
 	public void setSquad(GameSquad squad) {
+		if (currentSquad != null)
+			currentSquad.leaveSquad(this);
 		currentSquad = squad;
 		squad.joinSquad(this);
 	}
 	
 	public void leaveSquad() {
-		currentSquad.leaveSquad(this);
-		currentSquad = null;
+		if (currentSquad != null) {
+			currentSquad.leaveSquad(this);
+			currentSquad = null;
+		}
 	}
 	
 	public GameSquad getSquad() {
@@ -361,11 +363,23 @@ public class GamePlayer implements ITickHandler {
 		kit = newKit;
 	}
 	
+	public GameKit[] getKits() {
+		if (kits == null)
+			kits = new GameKit[] {new GameKit(KitClass.ASSAULT, this), new GameKit(KitClass.ENGINEER, this), new GameKit(KitClass.SUPPORT, this), new GameKit(KitClass.RECON, this)};
+		return kits;
+	}
+	
+	public GameKit getKit(int index) {
+		return getKits()[index];
+	}
+	
 	public GameKit getKit() {
-		return kits[kit];
+		return getKit(kit);
 	}
 	
 	public GameKit getGlobalKit() {
+		if (globalKit == null)
+			globalKit = new GameKit(KitClass.GENERIC, this);
 		return globalKit;
 	}
 	
@@ -380,20 +394,28 @@ public class GamePlayer implements ITickHandler {
 	public void receiveKit() {
 		try {
 			PlayerInventory inv = player.getPlayer().getInventory();
-			GunWrapper[] guns = new GunWrapper[] {primGlobal ? globalKit.getSelectedGun(0).gun : kits[kit].getSelectedGun(0).gun, globalKit.getSelectedGun(1).gun, kits[kit].getSelectedGun(2).gun};
-			for (int i = 0; i < 3; i++)
+			GunWrapper[] guns = new GunWrapper[] {primGlobal ? getGlobalKit().getSelectedGun(0).gun : getKit().getSelectedGun(0).gun, getGlobalKit().getSelectedGun(1).gun, getKit().getSelectedGun(2).gun};
+			for (int i = 0; i < 3; i++) {
 				inv.addItem(guns[i].gun.getMaterial().newItemStack(guns[i].amt));
+			}
+			PlayerGun primGun = primGlobal ? getGlobalKit().getSelectedGun(0) : getKit().getSelectedGun(0);
+			Gun pGun = SGUtil.getPlayerGun(player.getPlayer(), inv.getItem(0));
+			for (int i = 0; i < 2; i++) {
+				AttachmentWrapper wrapper;
+				if ((wrapper = primGun.getEquipped(i)) != null)
+					pGun.addAttachment(wrapper.att.getFileName());
+			}
 			replenishAmmo();
 				
 		} catch (Throwable th) {
-			PWarfare.INSTANCE.logger.warning("Error giving kit " + kits[kit].getName() + " to " + player.getName() + "!");
+			PWarfare.INSTANCE.logger.warning("Error giving kit " + getKit().getName() + " to " + player.getName() + "!");
 			th.printStackTrace();
 		}
 	}
 	
 	public void replenishAmmo() {
 		PlayerInventory inv = player.getPlayer().getInventory();
-		GunWrapper[] guns = new GunWrapper[] {primGlobal ? globalKit.getSelectedGun(0).gun : kits[kit].getSelectedGun(0).gun, globalKit.getSelectedGun(1).gun, kits[kit].getSelectedGun(2).gun};
+		GunWrapper[] guns = new GunWrapper[] {primGlobal ? getGlobalKit().getSelectedGun(0).gun : getKit().getSelectedGun(0).gun, getGlobalKit().getSelectedGun(1).gun, getKit().getSelectedGun(2).gun};
 		for (int i = 0; i < 3; i++) {
 			if (guns[i].gun.isHasClip()) {
 				inv.remove(guns[i].gun.getAmmo().getMaterial());

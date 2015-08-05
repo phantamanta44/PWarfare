@@ -30,15 +30,13 @@ public class Game implements ITickHandler {
 	private GameSquad[] bSquads = new GameSquad[8];
 	
 	public void startGame() {
-		if (state != GameState.STOPPED)
-			throw new IllegalStateException("Game already started!");
-		updateState(GameState.INIT);
+		if (state == GameState.STOPPED)
+			updateState(GameState.INIT);
 	}
 	
 	public void stopGame() {
-		if (state == GameState.STOPPED)
-			throw new IllegalStateException("Game already stopped!");
-		updateState(GameState.STOPPED);
+		if (state != GameState.STOPPED)
+			updateState(GameState.STOPPED);
 	}
 	
 	@Override
@@ -106,7 +104,8 @@ public class Game implements ITickHandler {
 		}
 		for (GamePlayer pl : PWarfare.INSTANCE.database.getPlayers())
 			pl.tick(tick);
-		currentMap.tick(tick);
+		if (currentMap != null)
+			currentMap.tick(tick);
 		TitleHelper.tick();
 	}
 

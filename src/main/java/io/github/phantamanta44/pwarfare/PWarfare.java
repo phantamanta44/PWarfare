@@ -3,6 +3,7 @@ package io.github.phantamanta44.pwarfare;
 import io.github.phantamanta44.pwarfare.data.GameConfig;
 import io.github.phantamanta44.pwarfare.data.GameDB;
 import io.github.phantamanta44.pwarfare.handler.ITickHandler;
+import io.github.phantamanta44.pwarfare.handler.PlayerHandler;
 
 import java.util.Set;
 import java.util.logging.Logger;
@@ -82,6 +83,7 @@ public class PWarfare extends JavaPlugin {
 	
 	private void registerHandlers() {
 		tickHandlers.add(Game.INSTANCE);
+		Bukkit.getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
 	}
 	
 	public void registerTickHandler(ITickHandler handler) {
